@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Approval Portal</title>
+    <!-- 1. Import Supabase securely -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 20px; text-align: center; }
+        .header { margin-bottom: 30px; }
+        .video-grid { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: left; }
+        .card h3 { margin-top: 0; color: #333; }
+        video { border-radius: 8px; background: #000; }
+        .actions { display: flex; gap: 10px; margin-top: 15px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: bold; color: white; cursor: pointer; }
+        .btn-approve { background-color: #2e7d32; }
+        .btn-reject { background-color: #c62828; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Content Approval Portal</h1>
+        <p>Review and route generated campaigns.</p>
+    </div>
+
+    <div class="video-grid" id="videoGrid">
+        <p id="loadingText">Loading pending campaigns...</p>
+    </div>
+
+    <script>
+        // ==========================================
+        // 2. PASTE YOUR EXACT URL AND KEY BELOW
+        // ==========================================
+        const SUPABASE_URL = 'https://yrhvlrlpdyxgllvshesb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlyaHZscmxwZHl4Z2xsdnNoZXNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2MDE5NTQsImV4cCI6MjEwNzE3Nzk1NH0.2HB4QEDU0bl3Jzvsbuq7kzUPc3W5UPpYIFimpGHV8tY';
+        // ==========================================
+
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const videoGrid = document.getElementById('videoGrid');
+
+        // 3. Fetch and Display Videos
+        async function loadPendingVideos() {
+            try {
+                const { data: videos, error } = await supabase
+                    .from('campaigns')
+                    .select('*')
+                    .eq('status', 'pending')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                if (!videos || videos.length === 0) {
+                    videoGrid.innerHTML = '<h3>All caught up! No pending videos.</h3>';
+                    return;
+                }
+
+                // Clear the loading text
+                videoGrid.innerHTML = '';
+
+                // Build a card for each video
+                videos.forEach(video => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <h3>Target: ${video.target_audience}</h3>
+                        <video controls width="100%">
+                            <source src="${video.video_url}" type="video/mp4">
+                        </video>
+                        <div class="actions">
+                            <button class="btn btn-approve" onclick="updateStatus(${video.id}, 'approved', this)">Approve</button>
+                            <button class="btn btn-reject" onclick="updateStatus(${video.id}, 'rejected', this)">Reject</button>
+                        </div>
+                    `;
+                    videoGrid.appendChild(card);
+                });
+
+            } catch (err) {
+                console.error("Supabase Error:", err);
+                videoGrid.innerHTML = `<h3 style="color: red;">Connection Error: ${err.message}</h3><p>Check your RLS settings and API keys.</p>`;
+            }
+        }
+
+        // 4. Handle Approvals/Rejections
+        async function updateStatus(videoId, newStatus, buttonElement) {
+            const card = buttonElement.closest('.card');
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
+
+            try {
+                const { error } = await supabase
+                    .from('campaigns')
+                    .update({ status: newStatus })
+                    .eq('id', videoId);
+
+                if (error) throw error;
+                
+                // Remove the card visually if successful
+                card.remove();
+
+                if (videoGrid.children.length === 0) {
+                    videoGrid.innerHTML = '<h3>All caught up! No pending videos.</h3>';
+                }
+
+            } catch (err) {
+                alert('Database update failed. Check console for details.');
+                card.style.opacity = '1';
+                card.style.pointerEvents = 'auto';
+            }
+        }
+
+        // 5. Start the script immediately
+        loadPendingVideos();
+    </script>
+</body>
+</html>
